@@ -32,5 +32,17 @@ defmodule Relay.AccountsTest do
     assert accepted.id == pending.id
     assert accepted.status == :accepted
     assert Enum.map(Accounts.list_friends(sender.id), & &1.id) == [recipient.id]
+    assert Enum.map(Accounts.list_friends(recipient.id), & &1.id) == [sender.id]
+  end
+
+  test "both users see each other after the recipient accepts" do
+    {:ok, sender} = Accounts.register_user(%{email: "accepted-sender@example.com", username: "accepted_sender", password: "password123"})
+    {:ok, recipient} = Accounts.register_user(%{email: "accepted-recipient@example.com", username: "accepted_recipient", password: "password123"})
+
+    assert {:ok, request} = Accounts.send_friend_request(sender.id, recipient.id)
+    assert {:ok, accepted} = Accounts.respond_to_request(recipient.id, request.id, :accepted)
+    assert accepted.status == :accepted
+    assert Enum.map(Accounts.list_friends(sender.id), & &1.id) == [recipient.id]
+    assert Enum.map(Accounts.list_friends(recipient.id), & &1.id) == [sender.id]
   end
 end

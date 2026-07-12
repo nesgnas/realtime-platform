@@ -20,7 +20,7 @@ export default function App() {
   const { user, loading, logout } = useAuth(); const [conversations, setConversations] = useState<Conversation[]>([]); const [selected, setSelected] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]); const [friends, setFriends] = useState<User[]>([]); const [requests, setRequests] = useState<FriendRequest[]>([]); const [notifications, setNotifications] = useState<Notification[]>([]); const [calls, setCalls] = useState<CallRecord[]>([]); const [panel, setPanel] = useState<Panel>('chat'); const [error, setError] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [call, setCall] = useState<CallRecord | null>(null)
   const token = localStorage.getItem('relay_token') || ''
   const receiveMessage = useCallback((message: Message) => setMessages(current => current.some(x => x.id === message.id) ? current : [...current, message]), [])
-  const receiveNotification = useCallback((notification: Notification) => setNotifications(current => [notification, ...current]), [])
+  const receiveNotification = useCallback((notification: Notification) => { setNotifications(current => [notification, ...current]); if (notification.type === 'friend_request_accepted') void api.friends().then(page => setFriends(page.data)) }, [])
   const receiveCall = useCallback((incoming: CallRecord) => setCall(incoming), [])
   const realtime = useRealtime(token, user?.id || '', selected, receiveMessage, receiveNotification, receiveCall)
   const callChannel = useCallChannel(realtime.socket, call?.id || null)
@@ -32,7 +32,7 @@ export default function App() {
   useEffect(() => { if (selected) api.messages(selected).then(page => setMessages(page.data)).catch(e => setError(e.message)) }, [selected])
   if (loading) return <div className="splash"><div className="logo-mark">R</div><p>Opening Relay…</p></div>
   if (!user) return <AuthScreen />
-  const openPanel = (value: Panel) => { setPanel(value); setMobileNav(false) }
+  const openPanel = (value: Panel) => { setPanel(value); setMobileNav(false); if (value === 'friends') void api.friends().then(page => setFriends(page.data)).catch(e => setError(e.message)) }
   const beginCall = async (kind: 'voice' | 'video') => { if (!selected) return; try { const record = await api.createCall(selected, kind); setCall(record) } catch (e) { setError((e as Error).message) } }
   return <div className="app">
     <aside className={`rail ${mobileNav ? 'open' : ''}`}><div className="logo-mark">R</div><nav aria-label="Primary"><button className={panel === 'chat' ? 'active' : ''} onClick={() => openPanel('chat')} aria-label="Chats"><MessageCircle/></button><button className={panel === 'friends' ? 'active' : ''} onClick={() => openPanel('friends')} aria-label="Friends"><Users/></button><button className={panel === 'requests' ? 'active' : ''} onClick={() => openPanel('requests')} aria-label="Friend requests"><UserPlus/></button><button className={panel === 'notifications' ? 'active' : ''} onClick={() => openPanel('notifications')} aria-label="Notifications"><Bell/>{notifications.some(n => !n.read_at) && <b/>}</button><button className={panel === 'calls' ? 'active' : ''} onClick={() => openPanel('calls')} aria-label="Call history"><History/></button></nav><button onClick={() => void logout()} aria-label="Sign out"><LogOut/></button></aside>

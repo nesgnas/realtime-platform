@@ -46,7 +46,14 @@ defmodule Relay.Accounts do
   def respond_to_request(user_id, id, status) when status in [:accepted, :declined] do
     case Repo.get_by(FriendRequest, id: id, recipient_id: user_id, status: :pending) do
       nil -> {:error, :not_found}
-      request -> request |> Ecto.Changeset.change(status: status) |> Repo.update()
+      request ->
+        result = request |> Ecto.Changeset.change(status: status) |> Repo.update()
+
+        if status == :accepted and match?({:ok, _}, result) do
+          Notifications.create(request.sender_id, "friend_request_accepted", %{request_id: request.id, user_id: user_id})
+        end
+
+        result
     end
   end
 
