@@ -1,0 +1,224 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realtime-platform
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: realtime-platform
+  namespace: realtime-platform
+data:
+  PHX_HOST: realtime.nesgnas.uk
+  PORT: "4000"
+  PHX_SERVER: "true"
+  CORS_ORIGINS: https://realtime.nesgnas.uk
+  DNS_CLUSTER_QUERY: ""
+  POOL_SIZE: "10"
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: realtime-postgres
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: realtime-local
+  hostPath:
+    path: /var/lib/realtime-platform/postgres
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: realtime-platform
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: realtime-local
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: realtime-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: realtime-postgres}
+  template:
+    metadata:
+      labels: {app: realtime-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          envFrom:
+            - secretRef: {name: realtime-platform-secrets}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec: {command: [sh, -c, "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]}
+            periodSeconds: 5
+          livenessProbe:
+            exec: {command: [sh, -c, "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]}
+            initialDelaySeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: postgres-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: realtime-platform
+spec:
+  selector: {app: realtime-postgres}
+  ports:
+    - {name: postgres, port: 5432, targetPort: postgres}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-backend
+  namespace: realtime-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: realtime-backend}
+  template:
+    metadata:
+      labels: {app: realtime-backend}
+    spec:
+      initContainers:
+        - name: prepare-uploads
+          image: busybox:1.37.0
+          command: ["sh", "-c", "chown -R 100:101 /uploads"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - {name: uploads, mountPath: /uploads}
+      containers:
+        - name: backend
+          image: localhost/realtime-platform-backend:v5
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef: {name: realtime-platform}
+            - secretRef: {name: realtime-platform-secrets}
+          ports:
+            - {name: http, containerPort: 4000}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 100
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - {name: uploads, mountPath: /app/lib/relay-0.1.0/uploads}
+      volumes:
+        - name: uploads
+          hostPath:
+            path: /var/lib/realtime-platform/uploads
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime-backend
+  namespace: realtime-platform
+spec:
+  selector: {app: realtime-backend}
+  ports:
+    - {name: http, port: 4000, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-frontend
+  namespace: realtime-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: realtime-frontend}
+  template:
+    metadata:
+      labels: {app: realtime-frontend}
+    spec:
+      containers:
+        - name: frontend
+          image: localhost/realtime-platform-frontend:v2
+          imagePullPolicy: Never
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 20
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime-frontend
+  namespace: realtime-platform
+spec:
+  selector: {app: realtime-frontend}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: realtime-boundary
+  namespace: realtime-platform
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities: [ingress]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: realtime-platform
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: realtime-platform
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: realtime-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: shared-edge-landing}
+  template:
+    metadata:
+      labels: {app: shared-edge-landing}
+    spec:
+      containers:
+        - name: web
+          image: busybox:1.37.0
+          args: ["httpd", "-f", "-p", "8080", "-h", "/www"]
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - {name: content, mountPath: /www, readOnly: true}
+      volumes:
+        - name: content
+          configMap: {name: shared-edge-landing-content}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing
+  namespace: realtime-platform
+spec:
+  selector: {app: shared-edge-landing}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-edge-http
+  namespace: realtime-platform
+  annotations:
+    ingress.cilium.io/loadbalancer-mode: dedicated
+    ingress.cilium.io/host-listener-port: "80"
+    ingress.cilium.io/force-https: disabled
+spec:
+  ingressClassName: cilium
+  rules:
+    - host: nesgnas.uk
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: landing, port: {number: 80}}}}
+    - host: www.nesgnas.uk
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: landing, port: {number: 80}}}}
+    - host: realtime.nesgnas.uk
+      http:
+        paths:
+          - {path: /api, pathType: Prefix, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
+          - {path: /socket, pathType: Prefix, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
+          - {path: /uploads, pathType: Prefix, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
+          - {path: /health, pathType: Exact, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
+          - {path: /, pathType: Prefix, backend: {service: {name: realtime-frontend, port: {number: 80}}}}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-production
+  namespace: realtime-platform
+spec:
+  acme:
+    email: nesgnas@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-account
+    solvers:
+      - http01:
+          ingress:
+            name: shared-edge-http
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: shared-edge-tls
+  namespace: realtime-platform
+spec:
+  secretName: shared-edge-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: Issuer
+  dnsNames: [nesgnas.uk, www.nesgnas.uk, realtime.nesgnas.uk]

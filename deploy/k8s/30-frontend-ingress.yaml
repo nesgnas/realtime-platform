@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-frontend
+  namespace: realtime-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: realtime-frontend}
+  template:
+    metadata:
+      labels: {app: realtime-frontend}
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/OWNER/realtime-platform-frontend:CHANGE_ME
+          envFrom:
+            - configMapRef: {name: realtime-platform}
+          ports:
+            - {name: http, containerPort: 80}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 20
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime-frontend
+  namespace: realtime-platform
+spec:
+  selector: {app: realtime-frontend}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: realtime-frontend
+  namespace: realtime-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: realtime-frontend}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realtime-platform
+  namespace: realtime-platform
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [realtime.example.com]
+      secretName: realtime-platform-tls
+  rules:
+    - host: realtime.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: {service: {name: realtime-backend, port: {number: 4000}}}
+          - path: /socket
+            pathType: Prefix
+            backend: {service: {name: realtime-backend, port: {number: 4000}}}
+          - path: /health
+            pathType: Exact
+            backend: {service: {name: realtime-backend, port: {number: 4000}}}
+          - path: /uploads
+            pathType: Prefix
+            backend: {service: {name: realtime-backend, port: {number: 4000}}}
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: realtime-frontend, port: {number: 80}}}

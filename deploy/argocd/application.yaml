@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: realtime-platform
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nesgnas/realtime-platform.git
+    targetRevision: main
+    path: deploy/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: realtime-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+*** Delete File: realtime-platform/deploy/k8s/backend-debug-patch.yaml
+*** Delete File: realtime-platform/deploy/k8s/backend-run-patch.yaml
+*** Delete File: realtime-platform/deploy/k8s/backend-security-patch.yaml
+*** Delete File: realtime-platform/deploy/k8s/frontend-security-patch.yaml
+*** Delete File: realtime-platform/deploy/k8s/postgres-security-patch.yaml

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realtime-platform
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: realtime-platform
+  namespace: realtime-platform
+data:
+  PHX_HOST: realtime.example.com
+  PORT: "4000"
+  PHX_SERVER: "true"
+  CORS_ORIGINS: https://realtime.example.com
+  DNS_CLUSTER_QUERY: realtime-backend-headless.realtime-platform.svc.cluster.local
+  VITE_API_URL: https://realtime.example.com/api
+  VITE_SOCKET_URL: wss://realtime.example.com/socket
+  VITE_ICE_SERVERS: '[{"urls":"stun:stun.example.com:3478"},{"urls":"turn:turn.example.com:3478","username":"replace-with-ephemeral-credential","credential":"CHANGE_ME"}]'
+  TURN_REALM: realtime.example.com
+  TURN_EXTERNAL_IP: "203.0.113.10"
+  TURN_MIN_PORT: "49160"
+  TURN_MAX_PORT: "49200"

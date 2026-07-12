@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+backend/_build/
+backend/deps/
+backend/erl_crash.dump
+frontend/dist/
+frontend/node_modules/
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

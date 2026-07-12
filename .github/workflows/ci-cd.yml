@@ -1,0 +1,110 @@
+name: CI and delivery
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "deploy/k8s/production.yaml"
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17.3"
+          otp-version: "27.1.2"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            backend/deps
+            backend/_build
+          key: beam-${{ runner.os }}-${{ hashFiles('backend/mix.lock') }}
+      - run: mix local.hex --force && mix local.rebar --force
+      - run: mix deps.get
+      - run: MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate
+      - run: mix test
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  publish:
+    if: github.event_name == 'push'
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/realtime-platform-backend:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          build-args: |
+            VITE_API_URL=https://realtime.nesgnas.uk/api
+            VITE_SOCKET_URL=wss://realtime.nesgnas.uk/socket
+          tags: ghcr.io/${{ github.repository_owner }}/realtime-platform-frontend:${{ github.sha }}
+      - name: Commit immutable image tags
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          sed -i "s|image: .*realtime-platform-backend:.*|image: ghcr.io/${OWNER}/realtime-platform-backend:${IMAGE_TAG}|" deploy/k8s/production.yaml
+          sed -i "s|image: .*realtime-platform-frontend:.*|image: ghcr.io/${OWNER}/realtime-platform-frontend:${IMAGE_TAG}|" deploy/k8s/production.yaml
+          sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" deploy/k8s/production.yaml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/k8s/production.yaml
+          git commit -m "deploy: ${IMAGE_TAG} [skip ci]"
+          git push
