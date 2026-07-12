@@ -62,7 +62,7 @@ export default function App() {
 function Avatar({ label, online }: { label: string; online?: boolean }) { return <span className="avatar" aria-hidden>{initials(label)}{online && <i/>}</span> }
 function Chat({ conversation, messages, user, onSent, onCall, onError }: { conversation?: Conversation; messages: Message[]; user: User; onSent(m: Message): void; onCall(k: 'voice' | 'video'): void; onError(s: string): void }) {
   const [body, setBody] = useState(''), [uploading, setUploading] = useState(false); const file = useRef<HTMLInputElement>(null); const end = useRef<HTMLDivElement>(null); const title = conversation?.name || conversation?.members.map(m => m.user).filter(m => m.id !== user.id).map(name).join(', ') || 'Conversation'
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth' }), [messages])
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   const send = async (e: FormEvent) => { e.preventDefault(); if (!conversation || !body.trim()) return; try { onSent(await api.sendMessage(conversation.id, body.trim())); setBody('') } catch (err) { onError((err as Error).message) } }
   const upload = async (input?: File) => { if (!input || !conversation) return; setUploading(true); try { onSent(await api.sendMessage(conversation.id, body.trim(), input)); setBody('') } catch (e) { onError((e as Error).message) } finally { setUploading(false) } }
   if (!conversation) return <div className="empty"><MessageCircle/><h2>Start a conversation</h2><p>Create a direct or group chat from the plus button.</p></div>
