@@ -30,6 +30,10 @@ defmodule Relay.Accounts do
       sender_id == recipient_id -> {:error, :cannot_friend_self}
       is_nil(Repo.get(User, recipient_id)) -> {:error, :not_found}
       friends?(sender_id, recipient_id) -> {:error, :already_friends}
+      request = Repo.get_by(FriendRequest, sender_id: sender_id, recipient_id: recipient_id, status: :pending) ->
+        {:ok, request}
+      request = Repo.get_by(FriendRequest, sender_id: recipient_id, recipient_id: sender_id, status: :pending) ->
+        request |> Ecto.Changeset.change(status: :accepted) |> Repo.update()
       true ->
         result = %FriendRequest{} |> FriendRequest.changeset(%{sender_id: sender_id, recipient_id: recipient_id}) |> Repo.insert()
         case result do

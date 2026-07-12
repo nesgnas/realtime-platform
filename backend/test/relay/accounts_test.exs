@@ -13,4 +13,24 @@ defmodule Relay.AccountsTest do
     {:ok, user} = Accounts.register_user(%{email: "self@example.com", username: "selfuser", password: "password123"})
     assert {:error, :cannot_friend_self} = Accounts.send_friend_request(user.id, user.id)
   end
+
+  test "repeating a pending friend request is idempotent" do
+    {:ok, sender} = Accounts.register_user(%{email: "sender@example.com", username: "sender", password: "password123"})
+    {:ok, recipient} = Accounts.register_user(%{email: "recipient@example.com", username: "recipient", password: "password123"})
+
+    assert {:ok, first} = Accounts.send_friend_request(sender.id, recipient.id)
+    assert {:ok, repeated} = Accounts.send_friend_request(sender.id, recipient.id)
+    assert repeated.id == first.id
+  end
+
+  test "a reverse friend request accepts the existing pending request" do
+    {:ok, sender} = Accounts.register_user(%{email: "reverse-sender@example.com", username: "reverse_sender", password: "password123"})
+    {:ok, recipient} = Accounts.register_user(%{email: "reverse-recipient@example.com", username: "reverse_recipient", password: "password123"})
+
+    assert {:ok, pending} = Accounts.send_friend_request(sender.id, recipient.id)
+    assert {:ok, accepted} = Accounts.send_friend_request(recipient.id, sender.id)
+    assert accepted.id == pending.id
+    assert accepted.status == :accepted
+    assert Enum.map(Accounts.list_friends(sender.id), & &1.id) == [recipient.id]
+  end
 end
