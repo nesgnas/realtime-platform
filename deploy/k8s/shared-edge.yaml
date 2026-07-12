@@ -44,15 +44,67 @@ spec:
     - {name: http, port: 80, targetPort: http}
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-edge-proxy
+  namespace: realtime-platform
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location / {
+        proxy_pass http://argocd-server.argocd.svc.cluster.local:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-edge-proxy
+  namespace: realtime-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: argocd-edge-proxy}
+  template:
+    metadata:
+      labels: {app: argocd-edge-proxy}
+    spec:
+      containers:
+        - name: proxy
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/conf.d/default.conf, subPath: default.conf, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: argocd-edge-proxy}
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: argocd-server
   namespace: realtime-platform
 spec:
-  type: ExternalName
-  externalName: argocd-server.argocd.svc.cluster.local
+  selector: {app: argocd-edge-proxy}
   ports:
-    - {name: http, port: 80, targetPort: 80}
+    - {name: http, port: 80, targetPort: http}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
