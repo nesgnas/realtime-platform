@@ -43,6 +43,17 @@ spec:
   ports:
     - {name: http, port: 80, targetPort: http}
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+  namespace: realtime-platform
+spec:
+  type: ExternalName
+  externalName: argocd-server.argocd.svc.cluster.local
+  ports:
+    - {name: http, port: 80, targetPort: 80}
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -71,6 +82,10 @@ spec:
           - {path: /uploads, pathType: Prefix, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
           - {path: /health, pathType: Exact, backend: {service: {name: realtime-backend, port: {number: 4000}}}}
           - {path: /, pathType: Prefix, backend: {service: {name: realtime-frontend, port: {number: 80}}}}
+    - host: argocd.nesgnas.uk
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: argocd-server, port: {number: 80}}}}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
@@ -98,4 +113,4 @@ spec:
   issuerRef:
     name: letsencrypt-production
     kind: Issuer
-  dnsNames: [nesgnas.uk, www.nesgnas.uk, realtime.nesgnas.uk]
+  dnsNames: [nesgnas.uk, www.nesgnas.uk, realtime.nesgnas.uk, argocd.nesgnas.uk]
