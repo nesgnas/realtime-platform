@@ -26,6 +26,21 @@ export default function App() {
   const callChannel = useCallChannel(realtime.socket, call?.id || null)
   const finishCall = useCallback(() => { if (call && call.initiator.id === user?.id) void api.endCall(call.id); setCall(null) }, [call, user?.id])
   const rtc = useWebRTC(callChannel, call?.kind === 'video', call?.initiator.id === user?.id, finishCall)
+  useEffect(() => {
+    if (!call || call.initiator.id === user?.id || rtc.localStream) return
+    const context = new AudioContext()
+    const ring = () => {
+      const startedAt = context.currentTime
+      for (const [frequency, delay] of [[660, 0], [880, 0.22]] as const) {
+        const oscillator = context.createOscillator(), gain = context.createGain()
+        oscillator.frequency.value = frequency; gain.gain.setValueAtTime(0, startedAt + delay); gain.gain.linearRampToValueAtTime(0.16, startedAt + delay + 0.02); gain.gain.linearRampToValueAtTime(0, startedAt + delay + 0.18)
+        oscillator.connect(gain).connect(context.destination); oscillator.start(startedAt + delay); oscillator.stop(startedAt + delay + 0.2)
+      }
+    }
+    void context.resume().then(ring)
+    const timer = window.setInterval(ring, 1600)
+    return () => { window.clearInterval(timer); void context.close() }
+  }, [call, rtc.localStream, user?.id])
   const current = conversations.find(c => c.id === selected)
   const loadAll = useCallback(async () => { try { const [c, f, r, n] = await Promise.all([api.conversations(), api.friends(), api.friendRequests(), api.notifications()]); const conversationId = selected || c.data[0]?.id; const h = conversationId ? await api.calls(conversationId) : { data: [] }; setConversations(c.data); setSelected(value => value || c.data[0]?.id || null); setFriends(f.data); setRequests(r.data); setNotifications(n.data); setCalls(h.data) } catch (e) { setError(e instanceof Error ? e.message : 'Could not load workspace') } }, [selected])
   useEffect(() => { if (user) void loadAll() }, [user, loadAll])
