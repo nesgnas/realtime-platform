@@ -5,7 +5,8 @@ defmodule Relay.AccountsTest do
     attrs = %{email: "TEST@example.com", username: "tester", password: "password123"}
     assert {:ok, user} = Accounts.register_user(attrs)
     assert user.email == "test@example.com"
-    assert {:ok, ^user} = Accounts.authenticate("test@example.com", "password123")
+    assert {:ok, authenticated} = Accounts.authenticate("test@example.com", "password123")
+    assert authenticated.id == user.id
     assert {:error, :invalid_credentials} = Accounts.authenticate("test@example.com", "wrong")
   end
   test "a user cannot friend themselves" do

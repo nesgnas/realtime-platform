@@ -2,7 +2,7 @@ import type { CallRecord, Conversation, FriendRequest, Message, Notification, Pa
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace(/\/$/, '')
 let token = localStorage.getItem('relay_token')
-export const setToken = (value: string | null) => { token = value; value ? localStorage.setItem('relay_token', value) : localStorage.removeItem('relay_token') }
+export const setToken = (value: string | null) => { token = value; if (value) localStorage.setItem('relay_token', value); else localStorage.removeItem('relay_token') }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
