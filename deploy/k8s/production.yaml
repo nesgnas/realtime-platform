@@ -116,7 +116,7 @@ spec:
             - {name: uploads, mountPath: /uploads}
       containers:
         - name: backend
-          image: ghcr.io/nesgnas/realtime-platform-backend:0f6b21ab6294ab7a4d2b4535f4e6b40f7107a9df
+          image: ghcr.io/nesgnas/realtime-platform-backend:e92bc8d709f987221509e0e21f8339084f5254bc
           imagePullPolicy: Always
           envFrom:
             - configMapRef: {name: realtime-platform}
@@ -175,7 +175,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/nesgnas/realtime-platform-frontend:0f6b21ab6294ab7a4d2b4535f4e6b40f7107a9df
+          image: ghcr.io/nesgnas/realtime-platform-frontend:e92bc8d709f987221509e0e21f8339084f5254bc
           imagePullPolicy: Always
           ports:
             - {name: http, containerPort: 8080}
