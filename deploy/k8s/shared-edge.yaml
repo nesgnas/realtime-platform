@@ -53,7 +53,8 @@ data:
     server {
       listen 8080;
       location / {
-        proxy_pass http://argocd-server.argocd.svc.cluster.local:80;
+        proxy_pass https://argocd-server.argocd.svc.cluster.local:443;
+        proxy_ssl_verify off;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -75,6 +76,7 @@ spec:
   template:
     metadata:
       labels: {app: argocd-edge-proxy}
+      annotations: {config-version: "2"}
     spec:
       containers:
         - name: proxy
