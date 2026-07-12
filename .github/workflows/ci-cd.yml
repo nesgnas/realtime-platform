@@ -94,6 +94,7 @@ jobs:
           build-args: |
             VITE_API_URL=https://realtime.nesgnas.uk/api
             VITE_SOCKET_URL=wss://realtime.nesgnas.uk/socket
+            VITE_ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"},{"urls":["turn:turn.nesgnas.uk:3478?transport=udp","turn:turn.nesgnas.uk:3478?transport=tcp"],"username":"realtime","credential":"${{ secrets.TURN_PASSWORD }}"}]
           tags: ghcr.io/${{ github.repository_owner }}/realtime-platform-frontend:${{ github.sha }}
       - name: Commit immutable image tags
         env:

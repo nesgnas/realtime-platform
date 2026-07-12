@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - production.yaml
   - shared-edge.yaml
+  - 40-coturn.optional.yaml

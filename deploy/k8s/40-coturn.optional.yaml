@@ -1,4 +1,3 @@
-# Optional example. TURN generally needs a public static IP and UDP-aware LoadBalancer.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +12,8 @@ spec:
     metadata:
       labels: {app: coturn}
     spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: coturn
           image: coturn/coturn:4.6.3-alpine
@@ -24,29 +25,17 @@ spec:
             - --realm=$(TURN_REALM)
             - --user=$(TURN_USER):$(TURN_PASSWORD)
             - --external-ip=$(TURN_EXTERNAL_IP)
-            - --min-port=49160
-            - --max-port=49200
+            - --min-port=$(TURN_MIN_PORT)
+            - --max-port=$(TURN_MAX_PORT)
           envFrom:
             - configMapRef: {name: realtime-platform}
             - secretRef: {name: realtime-platform-secrets}
           ports:
             - {name: turn-udp, containerPort: 3478, protocol: UDP}
             - {name: turn-tcp, containerPort: 3478, protocol: TCP}
+          readinessProbe:
+            tcpSocket: {port: turn-tcp}
+            initialDelaySeconds: 3
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {cpu: "1", memory: 512Mi}
----
-# This exposes signaling only. Provider-specific configuration or host networking
-# is required to expose the relay range (49160-49200/UDP) reliably.
-apiVersion: v1
-kind: Service
-metadata:
-  name: coturn
-  namespace: realtime-platform
-spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
-  selector: {app: coturn}
-  ports:
-    - {name: turn-udp, port: 3478, targetPort: turn-udp, protocol: UDP}
-    - {name: turn-tcp, port: 3478, targetPort: turn-tcp, protocol: TCP}

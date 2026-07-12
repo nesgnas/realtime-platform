@@ -13,6 +13,10 @@ data:
   PORT: "4000"
   PHX_SERVER: "true"
   CORS_ORIGINS: https://realtime.nesgnas.uk
+  TURN_REALM: realtime.nesgnas.uk
+  TURN_EXTERNAL_IP: "173.249.203.48"
+  TURN_MIN_PORT: "49160"
+  TURN_MAX_PORT: "49200"
   DNS_CLUSTER_QUERY: ""
   POOL_SIZE: "10"
 ---
