@@ -6,6 +6,7 @@ backend/deps/
 backend/erl_crash.dump
 frontend/dist/
 frontend/node_modules/
+frontend/*.tsbuildinfo
 *.log
 .idea/
 .vscode/

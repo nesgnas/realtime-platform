@@ -19,8 +19,3 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-*** Delete File: realtime-platform/deploy/k8s/backend-debug-patch.yaml
-*** Delete File: realtime-platform/deploy/k8s/backend-run-patch.yaml
-*** Delete File: realtime-platform/deploy/k8s/backend-security-patch.yaml
-*** Delete File: realtime-platform/deploy/k8s/frontend-security-patch.yaml
-*** Delete File: realtime-platform/deploy/k8s/postgres-security-patch.yaml
